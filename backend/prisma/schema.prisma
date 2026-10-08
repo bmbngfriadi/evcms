@@ -1,0 +1,176 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int       @id @default(autoincrement())
+  email            String    @unique
+  username         String?   @unique
+  name             String
+  password         String
+  roleId           Int
+  role             Role      @relation(fields: [roleId], references: [id])
+  isActive         Boolean   @default(true)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  userPermissions  UserPermission[]
+  auditLogs        AuditLog[]
+  resetToken       String?
+  resetTokenExpiry DateTime?
+  profile_picture  String?
+
+  @@map("users")
+}
+
+model Role {
+  id               Int       @id @default(autoincrement())
+  name             String    @unique
+  description      String?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  users            User[]
+  rolePermissions  RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id               Int       @id @default(autoincrement())
+  name             String    @unique
+  description      String?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  rolePermissions  RolePermission[]
+  userPermissions  UserPermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId           Int
+  permissionId     Int
+  role             Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission       Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserPermission {
+  userId           Int
+  permissionId     Int
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission       Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model Vehicle {
+  id               Int       @id @default(autoincrement())
+  kode             String    @unique
+  nomor_polisi     String    @unique
+  merk             String
+  model            String
+  tahun            Int
+  kapasitas_baterai Decimal  @db.Decimal(10, 2)
+  isActive         Boolean   @default(true)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  chargingCycles   ChargingCycle[]
+
+  @@map("vehicles")
+}
+
+model ElectricityTariff {
+  id               Int       @id @default(autoincrement())
+  nama             String
+  harga_per_kwh    Decimal   @db.Decimal(10, 2)
+  tanggal_mulai    DateTime
+  tanggal_selesai  DateTime?
+  isActive         Boolean   @default(true)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  @@map("electricity_tariffs")
+}
+
+model ChargingCycle {
+  id                          Int       @id @default(autoincrement())
+  vehicleId                   Int
+  vehicle                     Vehicle   @relation(fields: [vehicleId], references: [id])
+  status                      String    @default("DRAFT") // DRAFT, CHARGING, COMPLETED, CANCELLED
+  operatorId                  Int?
+
+  // Snapshot Data
+  battery_capacity_snapshot   Decimal?  @db.Decimal(10, 2)
+  electricity_tariff_snapshot Decimal?  @db.Decimal(10, 2)
+  
+  // Charging Start Data
+  tanggal                     DateTime
+  waktu_mulai                 DateTime
+  soc_before                  Decimal   @db.Decimal(5, 2)
+  odometer                    Int
+  previous_odometer           Int?
+  distance                    Int?
+  dashboard_consumption       Decimal   @db.Decimal(10, 2)
+
+  // Charging Finish Data
+  waktu_selesai               DateTime?
+  soc_after                   Decimal?  @db.Decimal(5, 2)
+
+  // Calculated Values
+  soc_added                   Decimal?  @db.Decimal(5, 2)
+  estimated_battery_energy_added Decimal? @db.Decimal(10, 3)
+  estimated_vehicle_energy    Decimal?  @db.Decimal(10, 3)
+  estimated_charging_cost     Decimal?  @db.Decimal(15, 2)
+  estimated_energy_cost       Decimal?  @db.Decimal(15, 2)
+  cost_per_km                 Decimal?  @db.Decimal(15, 2)
+
+  created_at                  DateTime  @default(now())
+  updated_at                  DateTime  @updatedAt
+
+  evidences                   ChargingEvidence[]
+
+  @@map("charging_cycles")
+}
+
+model ChargingEvidence {
+  id               Int       @id @default(autoincrement())
+  chargingCycleId  Int
+  chargingCycle    ChargingCycle @relation(fields: [chargingCycleId], references: [id], onDelete: Cascade)
+  type             String    // SOC_BEFORE, SOC_AFTER, DASHBOARD
+  filename         String
+  filepath         String
+  mime_type        String
+  file_size        Int
+  uploaded_by      Int
+  uploaded_at      DateTime  @default(now())
+
+  @@map("charging_evidences")
+}
+
+model AuditLog {
+  id               Int       @id @default(autoincrement())
+  userId           Int?
+  user             User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action           String
+  module           String
+  record_id        Int?
+  old_value        Json?
+  new_value        Json?
+  ip_address       String?
+  timestamp        DateTime  @default(now())
+
+  @@map("audit_logs")
+}

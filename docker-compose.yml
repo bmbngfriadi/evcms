@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  evcms-postgres:
+    image: postgres:15-alpine
+    container_name: evcms-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-evcms_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evcms_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-evcms}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - evcms_network
+    # ports:
+    #   - "5432:5432" # Uncomment for local development if needed
+
+  evcms-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: evcms-backend
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-evcms_user}:${POSTGRES_PASSWORD:-evcms_pass}@evcms-postgres:5432/${POSTGRES_DB:-evcms}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_here}
+      PORT: 3000
+      NODE_ENV: production
+      UPLOAD_DIR: /uploads
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+      FRONTEND_URL: ${FRONTEND_URL}
+    volumes:
+      - evcms_uploads:/uploads
+    depends_on:
+      - evcms-postgres
+    networks:
+      - evcms_network
+
+  evcms-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: evcms-frontend
+    restart: always
+    ports:
+      - "8080:80"
+    depends_on:
+      - evcms-backend
+    networks:
+      - evcms_network
+
+volumes:
+  postgres_data:
+  evcms_uploads:
+
+networks:
+  evcms_network:
+    driver: bridge
