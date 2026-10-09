@@ -23,7 +23,7 @@ services:
     container_name: evcms-backend
     restart: always
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-evcms_user}:${POSTGRES_PASSWORD:-evcms_pass}@evcms-postgres:5432/${POSTGRES_DB:-evcms}?schema=public
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-evcms_user}:${POSTGRES_PASSWORD:-evcms_pass}@evcms-postgres:5432/${POSTGRES_DB:-evcms}?schema=public}
       JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_here}
       PORT: 3000
       NODE_ENV: production
@@ -38,6 +38,8 @@ services:
       - evcms-postgres
     networks:
       - evcms_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   evcms-frontend:
     build:
