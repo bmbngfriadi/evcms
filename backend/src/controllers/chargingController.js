@@ -1,5 +1,6 @@
 const prisma = require('../prisma');
 const { calculateCharging, validateInputs } = require('../services/chargingCalculationService');
+const { sendChargingNotificationEmail } = require('../services/emailService');
 const fs = require('fs');
 
 const logAudit = async (req, action, recordId, oldValue, newValue) => {
@@ -17,6 +18,40 @@ const logAudit = async (req, action, recordId, oldValue, newValue) => {
         });
     } catch (e) {
         console.error('Audit log failed', e);
+    }
+};
+
+const notifyChargingActivity = async (cycle, statusText, operatorName, operatorEmail) => {
+    try {
+        const rolesToNotify = ['Administrator', 'HRGA Leader', 'HRGA Section Head'];
+        const usersToNotify = await prisma.user.findMany({
+            where: {
+                role: { name: { in: rolesToNotify } },
+                isActive: true
+            },
+            select: { email: true }
+        });
+
+        const emails = usersToNotify.map(u => u.email).filter(e => e);
+        if (operatorEmail && !emails.includes(operatorEmail)) {
+            emails.push(operatorEmail);
+        }
+
+        if (emails.length === 0) return;
+
+        const vehicle = await prisma.vehicle.findUnique({ where: { id: cycle.vehicleId } });
+        
+        const chargingData = {
+            id: cycle.id,
+            waktu: cycle.waktu_selesai || cycle.waktu_mulai,
+            kendaraan: `${vehicle.kode} - ${vehicle.nomor_polisi}`,
+            odometer: cycle.odometer,
+            operator: operatorName
+        };
+
+        await sendChargingNotificationEmail(emails, chargingData, statusText);
+    } catch (error) {
+        console.error('Error sending charging notification:', error);
     }
 };
 
@@ -254,6 +289,8 @@ exports.start = async (req, res, next) => {
 
         await logAudit(req, 'UPDATE_CHARGING_STATUS', updated.id, { status: cycle.status }, { status: 'CHARGING' });
 
+        notifyChargingActivity(updated, 'Mulai Charging', req.user.name, req.user.email);
+
         res.json({ success: true, data: updated });
     } catch (error) {
         next(error);
@@ -338,6 +375,8 @@ exports.finish = async (req, res, next) => {
         });
 
         await logAudit(req, 'COMPLETE_CHARGING', updated.id, { status: cycle.status }, updated);
+
+        notifyChargingActivity(updated, 'Selesai Charging', req.user.name, req.user.email);
 
         res.json({ success: true, data: updated });
     } catch (error) {
