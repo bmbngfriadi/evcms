@@ -46,7 +46,7 @@ services:
     container_name: evcms-frontend
     restart: always
     ports:
-      - "8080:80"
+      - "5176:80"
     depends_on:
       - evcms-backend
     networks:
