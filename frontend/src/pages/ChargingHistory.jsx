@@ -33,12 +33,19 @@ const ChargingHistory = () => {
         fetchHistory();
     }, []);
 
+    const toLocalISOString = (dateStr) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        const offsetMs = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - offsetMs).toISOString();
+    };
+
     const openEditModal = (item) => {
         setSelectedItem(item);
         setFormData({
-            tanggal: item.tanggal ? new Date(item.tanggal).toISOString().split('T')[0] : '',
-            waktu_mulai: item.waktu_mulai ? new Date(item.waktu_mulai).toISOString().slice(0, 16) : '',
-            waktu_selesai: item.waktu_selesai ? new Date(item.waktu_selesai).toISOString().slice(0, 16) : '',
+            tanggal: item.tanggal ? toLocalISOString(item.tanggal).split('T')[0] : '',
+            waktu_mulai: item.waktu_mulai ? toLocalISOString(item.waktu_mulai).slice(0, 16) : '',
+            waktu_selesai: item.waktu_selesai ? toLocalISOString(item.waktu_selesai).slice(0, 16) : '',
             soc_before: item.soc_before || '',
             soc_after: item.soc_after !== null ? item.soc_after : '',
             odometer: item.odometer || '',
@@ -116,16 +123,11 @@ const ChargingHistory = () => {
                     <thead>
                         <tr>
                             <th>Tanggal</th>
-                            <th>Kendaraan</th>
-                            <th>SOC Sebelum</th>
-                            <th>SOC Setelah</th>
-                            <th>SOC Bertambah</th>
+                            <th>Kode Kendaraan</th>
+                            <th>Nomor Polisi</th>
+                            <th>Daya Baterai Bertambah</th>
                             <th>Odometer</th>
-                            <th>Jarak</th>
-                            <th>Konsumsi</th>
-                            <th>Estimasi Energi</th>
-                            <th>Estimasi Biaya</th>
-                            <th>Cost/km</th>
+                            <th>Jarak Tempuh</th>
                             <th>Operator</th>
                             <th>Status</th>
                             <th>Aksi</th>
@@ -135,16 +137,11 @@ const ChargingHistory = () => {
                         {history.map(item => (
                             <tr key={item.id} onClick={() => navigate(`/charging/${item.id}`)} className="cursor-pointer hover:bg-[var(--primary-500)]/[0.05] transition-colors relative">
                                 <td className="whitespace-nowrap" data-label="Tanggal">{format(new Date(item.tanggal), 'dd MMM yyyy')}</td>
-                                <td className="whitespace-nowrap font-semibold" data-label="Kendaraan">{item.vehicle.kode} - {item.vehicle.nomor_polisi}</td>
-                                <td data-label="SOC Sebelum">{item.soc_before}%</td>
-                                <td data-label="SOC Setelah">{item.soc_after !== null ? `${item.soc_after}%` : '-'}</td>
-                                <td data-label="SOC Bertambah">{item.soc_added !== null ? `${item.soc_added}%` : '-'}</td>
-                                <td data-label="Odometer">{item.odometer}</td>
-                                <td data-label="Jarak">{item.distance !== null ? `${item.distance} km` : '-'}</td>
-                                <td data-label="Konsumsi">{item.dashboard_consumption}</td>
-                                <td className="whitespace-nowrap" data-label="Estimasi Energi">{item.estimated_battery_energy_added !== null ? `${item.estimated_battery_energy_added} kWh` : '-'}</td>
-                                <td className="whitespace-nowrap" data-label="Estimasi Biaya">{item.estimated_charging_cost !== null ? formatCurrency(item.estimated_charging_cost) : '-'}</td>
-                                <td className="whitespace-nowrap" data-label="Cost/km">{formatCurrency(item.cost_per_km)}</td>
+                                <td className="whitespace-nowrap font-semibold" data-label="Kode Kendaraan">{item.vehicle.kode}</td>
+                                <td className="whitespace-nowrap font-semibold" data-label="Nomor Polisi">{item.vehicle.nomor_polisi}</td>
+                                <td data-label="Daya Baterai Bertambah">{item.soc_added !== null ? `${item.soc_added}%` : '-'}</td>
+                                <td data-label="Odometer">{item.odometer} km</td>
+                                <td data-label="Jarak Tempuh">{item.distance !== null ? `${item.distance} km` : '-'}</td>
                                 <td className="whitespace-nowrap" data-label="Operator">{item.operator_name || '-'}</td>
                                 <td data-label="Status">
                                     <span className={`badge badge-${item.status === 'COMPLETED' ? 'success' : item.status === 'CANCELLED' ? 'danger' : item.status === 'CHARGING' ? 'info' : 'warning'}`}>
@@ -152,7 +149,7 @@ const ChargingHistory = () => {
                                     </span>
                                 </td>
                                 <td data-label="Aksi">
-                                    <div className="flex gap-2 flex-wrap lg:justify-start justify-end mt-2 lg:mt-0">
+                                    <div className="flex gap-2 flex-nowrap lg:justify-start justify-end mt-2 lg:mt-0">
                                         {hasPermission('charging.view') && (
                                             <Link to={`/charging/${item.id}`} onClick={e => e.stopPropagation()} className="btn btn-secondary whitespace-nowrap btn-sm" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>Detail</Link>
                                         )}

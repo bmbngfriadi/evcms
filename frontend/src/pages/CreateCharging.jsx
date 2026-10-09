@@ -2,17 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Modal from '../components/Modal';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft } from 'lucide-react';
 const CreateCharging = () => {
     const navigate = useNavigate();
     const [vehicles, setVehicles] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     
+    const getLocalTimeStrs = () => {
+        const now = new Date();
+        const offsetMs = now.getTimezoneOffset() * 60000;
+        const local = new Date(now.getTime() - offsetMs);
+        return {
+            date: local.toISOString().split('T')[0],
+            datetime: local.toISOString().slice(0, 16)
+        };
+    };
+    const localDefaults = getLocalTimeStrs();
+
     const [formData, setFormData] = useState({
         vehicleId: '',
-        tanggal: new Date().toISOString().split('T')[0],
-        waktu_mulai: new Date().toISOString().slice(0, 16),
+        tanggal: localDefaults.date,
+        waktu_mulai: localDefaults.datetime,
         soc_before: '',
         odometer: '',
         dashboard_consumption: ''
@@ -45,7 +56,12 @@ const CreateCharging = () => {
 
         try {
             // 1. Create Charging Cycle Draft
-            const res = await axios.post('/evcms/api/charging', formData);
+            const payload = {
+                ...formData,
+                tanggal: new Date(formData.tanggal).toISOString(),
+                waktu_mulai: new Date(formData.waktu_mulai).toISOString()
+            };
+            const res = await axios.post('/evcms/api/charging', payload);
             const cycleId = res.data.data.id;
 
             // 2. Upload Evidences
@@ -79,10 +95,20 @@ const CreateCharging = () => {
 
     return (
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-            <div className="page-header">
-                <div>
-                    <h1 className="page-title">Mulai Charging Baru</h1>
-                    <p className="page-desc">Masukkan data dari dashboard kendaraan</p>
+            <div className="page-header mb-8">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                    <button 
+                        onClick={() => navigate(-1)} 
+                        type="button"
+                        className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-2 rounded-full hover:bg-[var(--border-color)] shrink-0"
+                        title="Kembali"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    </button>
+                    <h1 className="page-title !mb-0">Mulai Charging Baru</h1>
+                </div>
+                <div className="ml-14">
+                    <p className="page-desc m-0">Masukkan data dari dashboard kendaraan</p>
                 </div>
             </div>
 

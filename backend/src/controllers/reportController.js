@@ -2,6 +2,7 @@ const prisma = require('../prisma');
 const ExcelJS = require('exceljs');
 const fs = require('fs');
 const path = require('path');
+const sizeOf = require('image-size').imageSize || require('image-size');
 
 exports.getReportData = async (req, res, next) => {
     try {
@@ -80,7 +81,7 @@ exports.exportExcel = async (req, res, next) => {
         sheet.getCell('A4').value = 'Role:';
         sheet.getCell('B4').value = req.user.role ? req.user.role.name : '-';
         sheet.getCell('A5').value = 'Waktu Ekstrak:';
-        sheet.getCell('B5').value = new Date().toLocaleString('id-ID');
+        sheet.getCell('B5').value = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
         sheet.getCell('A6').value = 'Total Data:';
         sheet.getCell('B6').value = `${chargingData.length} Siklus Selesai`;
 
@@ -90,7 +91,7 @@ exports.exportExcel = async (req, res, next) => {
 
         // 2. Table Headers
         const headers = [
-            'No', 'Waktu Mulai', 'Waktu Selesai', 'Kendaraan', 'Odometer (km)', 'Jarak (km)', 
+            'No', 'Waktu Mulai', 'Waktu Selesai', 'Kode Kendaraan', 'Nomor Polisi', 'Odometer (km)', 'Jarak (km)', 
             'Dash Cons (kWh/100km)', 'SOC Before', 'SOC After', 'SOC Added', 
             'Est. Battery Energy (kWh)', 'Est. Vehicle Energy (kWh)', 'Tarif (Rp/kWh)', 
             'Est. Biaya Charging', 'Est. Biaya Energi', 'Cost/km', 'Operator',
@@ -112,7 +113,8 @@ exports.exportExcel = async (req, res, next) => {
             { width: 5 },  // No
             { width: 20 }, // Waktu Mulai
             { width: 20 }, // Waktu Selesai
-            { width: 22 }, // Kendaraan
+            { width: 15 }, // Kode Kendaraan
+            { width: 15 }, // Nomor Polisi
             { width: 15 }, // Odo
             { width: 12 }, // Jarak
             { width: 18 }, // Dash Cons
@@ -142,15 +144,32 @@ exports.exportExcel = async (req, res, next) => {
                 const fullPath = path.resolve(__dirname, '..', '..', uploadDir, fileName);
                 
                 if (fs.existsSync(fullPath)) {
+                    const dimensions = sizeOf(fs.readFileSync(fullPath));
                     const ext = path.extname(fullPath).toLowerCase().substring(1);
                     const imageId = workbook.addImage({
                         filename: fullPath,
                         extension: ext === 'png' ? 'png' : 'jpeg',
                     });
                     
+                    // Column width 45 is roughly 315px, Row height 180 is roughly 240px
+                    const maxW = 315 - 20; // add some padding
+                    const maxH = 240 - 20;
+                    let imgW = dimensions.width;
+                    let imgH = dimensions.height;
+                    const ratio = imgW / imgH;
+
+                    if (imgW > maxW) {
+                        imgW = maxW;
+                        imgH = imgW / ratio;
+                    }
+                    if (imgH > maxH) {
+                        imgH = maxH;
+                        imgW = imgH * ratio;
+                    }
+                    
                     sheet.addImage(imageId, {
-                        tl: { col: colIndex + 0.05, row: currentRow - 1 + 0.05 }, // Add 5% padding
-                        br: { col: colIndex + 1 - 0.05, row: currentRow - 0.05 },
+                        tl: { col: colIndex + 0.1, row: currentRow - 1 + 0.1 },
+                        ext: { width: imgW, height: imgH },
                         editAs: 'oneCell'
                     });
                 }
@@ -166,44 +185,45 @@ exports.exportExcel = async (req, res, next) => {
             row.height = 180; // 180 points high for images to be very visible
             
             row.getCell(1).value = i + 1;
-            row.getCell(2).value = new Date(data.waktu_mulai).toLocaleString('id-ID');
-            row.getCell(3).value = data.waktu_selesai ? new Date(data.waktu_selesai).toLocaleString('id-ID') : '-';
-            row.getCell(4).value = `${data.vehicle.kode}\n${data.vehicle.nomor_polisi}`;
-            row.getCell(5).value = data.odometer;
-            row.getCell(6).value = data.distance;
-            row.getCell(7).value = parseFloat(data.dashboard_consumption);
-            row.getCell(8).value = `${parseFloat(data.soc_before)}%`;
-            row.getCell(9).value = data.soc_after ? `${parseFloat(data.soc_after)}%` : '-';
-            row.getCell(10).value = data.soc_added ? `${parseFloat(data.soc_added)}%` : '-';
-            row.getCell(11).value = data.estimated_battery_energy_added ? parseFloat(data.estimated_battery_energy_added) : 0;
-            row.getCell(12).value = data.estimated_vehicle_energy ? parseFloat(data.estimated_vehicle_energy) : 0;
-            row.getCell(13).value = data.electricity_tariff_snapshot ? parseFloat(data.electricity_tariff_snapshot) : 0;
-            row.getCell(14).value = data.estimated_charging_cost ? parseFloat(data.estimated_charging_cost) : 0;
-            row.getCell(15).value = data.estimated_energy_cost ? parseFloat(data.estimated_energy_cost) : 0;
-            row.getCell(16).value = data.cost_per_km ? parseFloat(data.cost_per_km) : 0;
-            row.getCell(17).value = data.operatorId ? userMap[data.operatorId] : '-';
+            row.getCell(2).value = new Date(data.waktu_mulai).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+            row.getCell(3).value = data.waktu_selesai ? new Date(data.waktu_selesai).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '-';
+            row.getCell(4).value = data.vehicle.kode;
+            row.getCell(5).value = data.vehicle.nomor_polisi;
+            row.getCell(6).value = data.odometer;
+            row.getCell(7).value = data.distance;
+            row.getCell(8).value = parseFloat(data.dashboard_consumption);
+            row.getCell(9).value = `${parseFloat(data.soc_before)}%`;
+            row.getCell(10).value = data.soc_after ? `${parseFloat(data.soc_after)}%` : '-';
+            row.getCell(11).value = data.soc_added ? `${parseFloat(data.soc_added)}%` : '-';
+            row.getCell(12).value = data.estimated_battery_energy_added ? parseFloat(data.estimated_battery_energy_added) : 0;
+            row.getCell(13).value = data.estimated_vehicle_energy ? parseFloat(data.estimated_vehicle_energy) : 0;
+            row.getCell(14).value = data.electricity_tariff_snapshot ? parseFloat(data.electricity_tariff_snapshot) : 0;
+            row.getCell(15).value = data.estimated_charging_cost ? parseFloat(data.estimated_charging_cost) : 0;
+            row.getCell(16).value = data.estimated_energy_cost ? parseFloat(data.estimated_energy_cost) : 0;
+            row.getCell(17).value = data.cost_per_km ? parseFloat(data.cost_per_km) : 0;
+            row.getCell(18).value = data.operatorId ? userMap[data.operatorId] : '-';
 
             // Add images (colIndex is 0-based for tl.col)
-            // Foto SOC Before -> col 18 in Excel, so colIndex = 17
+            // Foto SOC Before -> col 19 in Excel, so colIndex = 18
             const socBeforeImg = data.evidences.find(e => e.type === 'SOC_BEFORE' || e.type === 'DASHBOARD');
-            if (socBeforeImg) addImg(socBeforeImg.filepath, 17);
+            if (socBeforeImg) addImg(socBeforeImg.filepath, 18);
             
-            // Foto SOC After -> col 19, colIndex = 18
+            // Foto SOC After -> col 20, colIndex = 19
             const socAfterImg = data.evidences.find(e => e.type === 'SOC_AFTER');
-            if (socAfterImg) addImg(socAfterImg.filepath, 18);
+            if (socAfterImg) addImg(socAfterImg.filepath, 19);
 
             // style formatting
-            for(let c=1; c<=19; c++){
+            for(let c=1; c<=20; c++){
                 const cell = row.getCell(c);
                 cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
                 cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
             }
             
             // Format currency
-            row.getCell(13).numFmt = '"Rp"#,##0.00';
             row.getCell(14).numFmt = '"Rp"#,##0.00';
             row.getCell(15).numFmt = '"Rp"#,##0.00';
             row.getCell(16).numFmt = '"Rp"#,##0.00';
+            row.getCell(17).numFmt = '"Rp"#,##0.00';
 
             currentRow++;
         }

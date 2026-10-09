@@ -12,8 +12,14 @@ const ChargingDetail = () => {
     const [loading, setLoading] = useState(true);
     const { hasPermission } = useAuth();
     
+    const getLocalTimeStr = () => {
+        const now = new Date();
+        const offsetMs = now.getTimezoneOffset() * 60000;
+        return new Date(now.getTime() - offsetMs).toISOString().slice(0, 16);
+    };
+
     // For finishing charging
-    const [waktuSelesai, setWaktuSelesai] = useState(new Date().toISOString().slice(0, 16));
+    const [waktuSelesai, setWaktuSelesai] = useState(getLocalTimeStr());
     const [socAfter, setSocAfter] = useState('');
     const [evidenceSocAfter, setEvidenceSocAfter] = useState(null);
     const [isFinishing, setIsFinishing] = useState(false);
@@ -69,7 +75,7 @@ const ChargingDetail = () => {
             }
 
             await axios.post(`/evcms/api/charging/${id}/finish`, {
-                waktu_selesai: waktuSelesai,
+                waktu_selesai: new Date(waktuSelesai).toISOString(),
                 soc_after: socAfter
             });
             
@@ -136,30 +142,55 @@ const ChargingDetail = () => {
                     <p><strong>Operator:</strong> {data.operator_name || '-'}</p>
                 </div>
 
-                <div className="glass-card">
-                    <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Kondisi Kendaraan</h2>
-                    <p><strong>SOC Before:</strong> {data.soc_before}%</p>
-                    <p><strong>SOC After:</strong> {data.soc_after !== null ? `${data.soc_after}%` : '-'}</p>
-                    <p><strong>SOC Added:</strong> {data.soc_added !== null ? `${data.soc_added}%` : '-'}</p>
-                    <p><strong>Odometer:</strong> {data.odometer} km</p>
-                    <p><strong>Distance:</strong> {data.distance !== null ? `${data.distance} km` : '-'}</p>
+                <div className="glass-card flex flex-col gap-3">
+                    <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Kondisi Kendaraan</h2>
+                    <div><strong>Baterai Sebelum Dicas:</strong> {data.soc_before}%</div>
+                    <div><strong>Baterai Setelah Dicas:</strong> {data.soc_after !== null ? `${data.soc_after}%` : '-'}</div>
+                    <div>
+                        <strong>Daya Baterai Bertambah:</strong> {data.soc_added !== null ? `${data.soc_added}%` : '-'}
+                        {data.soc_added !== null && <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Baterai Setelah ({data.soc_after}%) dikurangi Baterai Sebelum ({data.soc_before}%)</div>}
+                    </div>
+                    <div><strong>Odometer (Jarak Total Kendaraan):</strong> {data.odometer} km</div>
+                    <div>
+                        <strong>Jarak Tempuh:</strong> {data.distance !== null ? `${data.distance} km` : '-'}
+                        {data.distance !== null && <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Odometer saat ini dikurangi Odometer pada pengecasan sebelumnya</div>}
+                    </div>
                 </div>
 
-                <div className="glass-card">
-                    <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Konsumsi</h2>
-                    <p><strong>Dashboard Consumption:</strong> {data.dashboard_consumption} kWh/100km</p>
-                    <p><strong>Estimated Energy:</strong> {data.estimated_vehicle_energy !== null ? `${data.estimated_vehicle_energy} kWh` : '-'}</p>
+                <div className="glass-card flex flex-col gap-3">
+                    <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Konsumsi & Energi Listrik</h2>
+                    <div><strong>Rata-rata Konsumsi (di Dashboard):</strong> {data.dashboard_consumption} kWh/100km</div>
+                    
+                    <div>
+                        <strong>Total Energi Masuk ke Mobil:</strong> {data.estimated_battery_energy_added !== null ? `${data.estimated_battery_energy_added} kWh` : '-'}
+                        {data.estimated_battery_energy_added !== null && <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">(Persentase Baterai Bertambah ÷ 100) dikali Kapasitas Total Baterai ({data.battery_capacity_snapshot || data.vehicle.kapasitas_baterai} kWh)</div>}
+                    </div>
+
+                    <div>
+                        <strong>Total Energi yang Dipakai Mobil:</strong> {data.estimated_vehicle_energy !== null ? `${data.estimated_vehicle_energy} kWh` : '-'}
+                        {data.estimated_vehicle_energy !== null && <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">(Jarak Tempuh dikali Rata-rata Konsumsi Dashboard) lalu dibagi 100</div>}
+                    </div>
                 </div>
 
-                <div className="glass-card" style={{ background: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
-                    <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem', borderBottom: '1px solid rgba(16, 185, 129, 0.2)', paddingBottom: '0.5rem', color: 'var(--success-color)' }}>Biaya</h2>
-                    <p><strong>Battery Capacity:</strong> {data.battery_capacity_snapshot || data.vehicle.kapasitas_baterai} kWh</p>
-                    <p><strong>Electricity Tariff:</strong> {data.electricity_tariff_snapshot !== null ? `${formatCurrency(data.electricity_tariff_snapshot)}/kWh` : '-'}</p>
-                    <p><strong>Estimated Charging Cost:</strong> {formatCurrency(data.estimated_charging_cost)}</p>
-                    <p><strong>Estimated Energy Cost:</strong> {formatCurrency(data.estimated_energy_cost)}</p>
-                    <p style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed rgba(16, 185, 129, 0.2)', fontWeight: 600, fontSize: '1.1rem' }}>
-                        Cost/km: {formatCurrency(data.cost_per_km)}
-                    </p>
+                <div className="glass-card flex flex-col gap-3" style={{ background: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                    <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', borderBottom: '1px solid rgba(16, 185, 129, 0.2)', paddingBottom: '0.5rem', color: 'var(--success-color)' }}>Biaya Finansial</h2>
+                    <div><strong>Kapasitas Total Baterai Mobil:</strong> {data.battery_capacity_snapshot || data.vehicle.kapasitas_baterai} kWh</div>
+                    <div><strong>Harga / Tarif Listrik Saat Ini:</strong> {data.electricity_tariff_snapshot !== null ? `${formatCurrency(data.electricity_tariff_snapshot)} per kWh` : '-'}</div>
+                    
+                    <div>
+                        <strong>Biaya Pengecasan (Untuk Baterai Terisi):</strong> {formatCurrency(data.estimated_charging_cost)}
+                        {data.estimated_charging_cost !== null && <div className="text-xs opacity-70 mt-0.5" style={{ color: 'var(--success-color)' }}>Total Energi Masuk ke Mobil dikali Harga Tarif Listrik</div>}
+                    </div>
+                    
+                    <div>
+                        <strong>Biaya Operasional (Pemakaian Listrik Jalan):</strong> {formatCurrency(data.estimated_energy_cost)}
+                        {data.estimated_energy_cost !== null && <div className="text-xs opacity-70 mt-0.5" style={{ color: 'var(--success-color)' }}>Total Energi yang Dipakai Mobil dikali Harga Tarif Listrik</div>}
+                    </div>
+                    
+                    <div style={{ marginTop: '0.5rem', paddingTop: '1rem', borderTop: '1px dashed rgba(16, 185, 129, 0.2)' }}>
+                        <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>Rata-rata Biaya per Kilometer: {formatCurrency(data.cost_per_km)}</div>
+                        {data.cost_per_km !== null && <div className="text-xs opacity-70 mt-0.5" style={{ color: 'var(--success-color)' }}>Biaya Operasional dibagi Jarak Tempuh</div>}
+                    </div>
                 </div>
             </div>
 
